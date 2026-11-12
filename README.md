@@ -44,6 +44,24 @@ Gli arbitraggisti sono il 13% delle esecuzioni, ma ciascuna costa in media −13
 
 Il simulatore è in [`two_venue_sim.py`](two_venue_sim.py): vettorizzato sulle traiettorie Monte Carlo, scompone il PnL in edge delle esecuzioni e PnL dell'inventario e misura il markout per tipo di controparte.
 
+### Dove si colloca nella letteratura
+
+Il modello mette insieme tre filoni noti:
+- **selezione avversa:** Glosten e Milgrom, 1985; Copeland e Galai, 1983;
+- **market making ottimale:** Avellaneda e Stoikov, 2008; Cartea, Jaimungal e Ricci, 2014;
+- **arbitraggio di latenza sulle quote rimaste indietro:** Budish, Cramton e Shim, 2015; Foucault, Kozhan e Tham, 2017.
+
+Il loro equivalente in DeFi è il *loss-versus-rebalancing* dei fornitori di liquidità degli AMM (Milionis et al., 2022). Il contributo qui non è teorico: il meccanismo di Budish e coautori diventa misurabile in una simulazione e viene collegato a quanto osservato in gara. La discussione completa e i riferimenti sono alla fine del notebook.
+
+## Riferimenti principali
+
+* Avellaneda, M. e Stoikov, S. (2008). High-frequency trading in a limit order book. *Quantitative Finance*.
+* Budish, E., Cramton, P. e Shim, J. (2015). The high-frequency trading arms race: frequent batch auctions as a market design response. *Quarterly Journal of Economics*.
+* Cartea, Á., Jaimungal, S. e Penalva, J. (2015). *Algorithmic and High-Frequency Trading*. Cambridge University Press.
+* Foucault, T., Kozhan, R. e Tham, W. W. (2017). Toxic arbitrage. *Review of Financial Studies*.
+* Glosten, L. e Milgrom, P. (1985). Bid, ask and transaction prices in a specialist market with heterogeneously informed traders. *Journal of Financial Economics*.
+* Milionis, J., Moallemi, C. C., Roughgarden, T. e Zhang, A. L. (2022). Automated market making and loss-versus-rebalancing. Preprint arXiv.
+
 ## ▶️ Esecuzione
 
 Serve Python 3.9 o successivo.
