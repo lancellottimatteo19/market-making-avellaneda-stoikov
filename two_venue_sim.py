@@ -66,6 +66,7 @@ class MarketMaker:
     guard_bps: float = np.inf                          # move that triggers the guard, basis points (inf: off)
     guard_window: float = 1.0                          # seconds over which the move is measured
     guard_pause: float = 3.0                           # seconds the exposed side stays withdrawn
+    fee_bp: float = 0.0                                # maker fee per fill, bp of notional (negative: rebate)
 
 
 def efficient_price(market, n_paths, rng):
@@ -96,7 +97,7 @@ def simulate(market, mm, n_paths=200, seed=0, markout_horizons=(1.0, 10.0, 60.0)
 
     Every fill is valued against the efficient price at the time of the fill (``edge``: what we earn if the
     price then stood still) and ``h`` seconds later for each markout horizon (edge plus the move that
-    followed). The final PnL splits exactly into the edge of all fills plus the inventory PnL.
+    followed). The final PnL splits exactly into the edge of all fills plus the inventory PnL minus fees.
     With ``trace=True`` the quotes and fills of the first path are recorded for plotting.
     ``price`` can be passed to run several market makers on the same efficient-price paths.
     """
@@ -112,6 +113,7 @@ def simulate(market, mm, n_paths=200, seed=0, markout_horizons=(1.0, 10.0, 60.0)
 
     q = np.zeros(n_paths)
     cash = np.zeros(n_paths)
+    fees = np.zeros(n_paths)
     inv_pnl = np.zeros(n_paths)
     no_ask_until = np.full(n_paths, -1)
     no_bid_until = np.full(n_paths, -1)
@@ -125,6 +127,7 @@ def simulate(market, mm, n_paths=200, seed=0, markout_horizons=(1.0, 10.0, 60.0)
             return
         s = stats[who]
         s["fills"] += mask
+        fees[:] += np.where(mask, mm.fee_bp * 1e-4 * fill_price, 0.0)
         s["edge"] += np.where(mask, signed_qty * (price[i] - fill_price), 0.0)
         for h, steps in horizons.items():
             s["markout"][h] += np.where(mask, signed_qty * (price[min(i + steps, n)] - fill_price), 0.0)
@@ -176,7 +179,7 @@ def simulate(market, mm, n_paths=200, seed=0, markout_horizons=(1.0, 10.0, 60.0)
         inv_pnl += q * (price[i + 1] - p)
 
     edge = stats["noise"]["edge"] + stats["arbitrage"]["edge"]
-    return dict(pnl=cash + q * price[n], edge=edge, inventory_pnl=inv_pnl, final_q=q.copy(),
+    return dict(pnl=cash + q * price[n] - fees, edge=edge, inventory_pnl=inv_pnl, fees=fees, final_q=q.copy(),
                 stats=stats, price=price, trace=tr, market=market, mm=mm)
 
 
@@ -191,8 +194,9 @@ def summary(result, horizon=10.0):
     """Per-path means in USD (orders of one unit worth 100 USD) and markouts per fill in basis points."""
     s = result["stats"]
     row = {"PnL": result["pnl"].mean(), "PnL sd": result["pnl"].std(),
-           "edge": result["edge"].mean(), "inventario": result["inventory_pnl"].mean()}
+           "edge": result["edge"].mean(), "inventory": result["inventory_pnl"].mean(),
+           "fees": result["fees"].mean()}
     for who in WHO:
-        row[f"esecuzioni {who}"] = s[who]["fills"].mean()
-        row[f"markout {who} {horizon:g}s (bp)"] = markout_bp(result, who, horizon)
+        row[f"{who} fills"] = s[who]["fills"].mean()
+        row[f"{who} markout {horizon:g}s (bp)"] = markout_bp(result, who, horizon)
     return row

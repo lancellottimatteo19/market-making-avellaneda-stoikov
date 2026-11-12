@@ -20,7 +20,7 @@ def run(price, market=MARKET, mm=MM, **kw):
 
 def test_pnl_splits_into_edge_and_inventory(price):
     r = run(price)
-    np.testing.assert_allclose(r["pnl"], r["edge"] + r["inventory_pnl"], atol=1e-9)
+    np.testing.assert_allclose(r["pnl"], r["edge"] + r["inventory_pnl"] - r["fees"], atol=1e-9)
 
 
 def test_efficient_price_variance_matches_the_model():
@@ -62,3 +62,11 @@ def test_trace_records_the_first_path(price):
     assert len(tr["seen"]) == MARKET.steps
     n_fills = r["stats"]["noise"]["fills"][0] + r["stats"]["arbitrage"]["fills"][0]
     assert len(tr["fills"]) == n_fills
+
+
+def test_maker_fee_is_charged_on_every_fill(price):
+    free = run(price)
+    paid = run(price, mm=replace(MM, fee_bp=1.5))
+    fills = free["stats"]["noise"]["fills"] + free["stats"]["arbitrage"]["fills"]
+    np.testing.assert_allclose(free["pnl"] - paid["pnl"], paid["fees"])
+    np.testing.assert_allclose(paid["fees"], fills * 1.5e-4 * MARKET.s0, rtol=0.01)

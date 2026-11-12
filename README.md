@@ -1,70 +1,87 @@
-# Market Making: da Avellaneda-Stoikov alla selezione avversa
+# Market Making: from Avellaneda-Stoikov to Adverse Selection
 
-Due notebook sul market making ottimale:
+How much does a market maker lose to faster traders, and what can it do about it? Three notebooks:
 
-1. la replica del modello di **Avellaneda & Stoikov (2008)**, *High-frequency trading in a limit order book*;
-2. lo stesso market maker su una **borsa che segue**, dove il prezzo si forma altrove e gli **arbitraggisti** colpiscono le quote rimaste indietro. È il problema che abbiamo incontrato nella gara di trading [Perpetual Alpha](https://github.com/lancellottimatteo19/perpetual-alpha).
+1. a replication of the **Avellaneda & Stoikov (2008)** optimal market-making model;
+2. the same market maker on a **lagging venue**, where the price is discovered elsewhere and **arbitrageurs** pick off stale quotes — the problem we met in the [Perpetual Alpha](https://github.com/lancellottimatteo19/perpetual-alpha) trading competition;
+3. the same mechanism measured on **49 hours of real Hyperliquid and Binance data**, with the model calibrated on them.
 
-## 1. Il modello di Avellaneda-Stoikov — [`avellaneda_stoikov.ipynb`](avellaneda_stoikov.ipynb)
+**Key results on real data (BTC, ETH, HYPE, 10–12 November 2026)**
 
-* **Prezzo di riserva** $r = s - q \gamma \sigma^2 (T-t)$: le quote si spostano contro l'inventario per riportarlo verso zero.
-* **Spread ottimale** $\delta^a + \delta^b = \gamma \sigma^2 (T-t) + \frac{2}{\gamma}\ln\left(1 + \frac{\gamma}{k}\right)$.
-* **Mid-price** come passeggiata aleatoria $s_{t+dt} = s_t \pm \sigma\sqrt{dt}$ ed **esecuzioni** con intensità di Poisson $\lambda(\delta) = A e^{-k\delta}$, con i parametri della Sezione 4 dell'articolo.
-* **Confronto Monte Carlo** (1000 simulazioni) con una strategia simmetrica attorno al mid-price, per tre livelli di avversione al rischio $\gamma$.
+| | BTC | ETH | HYPE |
+|---|---:|---:|---:|
+| Delay of Hyperliquid behind Binance (exchange clocks) | 0.5 s | 0.5 s | 0.2 s |
+| Share of volume that follows a Binance move in the previous second | 33% | 47% | 57% |
+| Maker's 10 s markout on those trades, when the move exceeds 3 bp | −2.8 bp | −2.7 bp | −2.0 bp |
+| Maker's 10 s markout when Binance is flat | +0.07 bp | +0.24 bp | +0.07 bp |
 
-| $\gamma$ | Strategia | PnL medio | Dev. std PnL | Dev. std inventario finale |
+The two-venue model, calibrated on Binance volatility and Hyperliquid spreads, reproduces these markouts without being fitted to them (+0.07 and −3.0 bp against +0.07 and −2.8 bp). It shows that on these venues a market maker's profit depends on **latency and fees**, not on the spread formula.
+
+## 1. The Avellaneda-Stoikov model — [`avellaneda_stoikov.ipynb`](avellaneda_stoikov.ipynb)
+
+* **Reservation price** $r = s - q \gamma \sigma^2 (T-t)$: quotes are skewed against the inventory to bring it back to zero.
+* **Optimal spread** $\delta^a + \delta^b = \gamma \sigma^2 (T-t) + \frac{2}{\gamma}\ln\left(1 + \frac{\gamma}{k}\right)$.
+* **Mid-price** as a random walk $s_{t+dt} = s_t \pm \sigma\sqrt{dt}$ and **fills** with Poisson intensity $\lambda(\delta) = A e^{-k\delta}$, with the parameters of Section 4 of the paper.
+* **Monte Carlo comparison** (1000 simulations) with a strategy quoting symmetrically around the mid, for three levels of risk aversion $\gamma$.
+
+| $\gamma$ | Strategy | Mean PnL | PnL std. dev. | Final inventory std. dev. |
 |---|---|---:|---:|---:|
 | 0.01 | Avellaneda-Stoikov | 68.35 | 8.91 | 5.20 |
-| 0.01 | Simmetrica | 68.26 | 13.28 | 8.53 |
+| 0.01 | Symmetric | 68.26 | 13.28 | 8.53 |
 | 0.1 | Avellaneda-Stoikov | 64.90 | 6.52 | 2.89 |
-| 0.1 | Simmetrica | 67.39 | 12.90 | 8.31 |
+| 0.1 | Symmetric | 67.39 | 12.90 | 8.31 |
 | 0.5 | Avellaneda-Stoikov | 48.59 | 5.79 | 1.93 |
-| 0.5 | Simmetrica | 58.32 | 11.29 | 6.99 |
+| 0.5 | Symmetric | 58.32 | 11.29 | 6.99 |
 
-La strategia con gestione dell'inventario dimezza circa la dispersione del PnL e riduce di tre o quattro volte quella dell'inventario, rinunciando a una parte del guadagno medio; più alto è $\gamma$, più netto è il compromesso.
+Inventory management roughly halves the dispersion of the PnL and cuts that of the inventory by a factor of three to four, at the cost of part of the mean profit; the higher $\gamma$, the sharper the trade-off.
 
-## 2. Selezione avversa su una borsa che segue — [`two_venue_adverse_selection.ipynb`](two_venue_adverse_selection.ipynb)
+## 2. Adverse selection on a lagging venue — [`two_venue_adverse_selection.ipynb`](two_venue_adverse_selection.ipynb)
 
-Sui mercati reali il prezzo si forma su più borse: per le crypto di solito guida Binance e le altre seguono con un ritardo. Il modello ha:
+In real markets the price is discovered across several venues: in crypto, Binance usually leads and other venues follow with a delay. The model has:
 
-* un **prezzo efficiente** sulla borsa leader: moto browniano più eventi informativi che la borsa incorpora in pochi secondi;
-* il **market maker** sulla borsa che segue, che vede il prezzo leader con un ritardo e quota con le formule di Avellaneda-Stoikov;
-* **noise trader** non informati, come nell'articolo, e **arbitraggisti** che vedono la borsa leader e prendono ogni quota rimasta indietro di più del loro costo;
-* due difese: **spread più largo** e una **guardia** che ritira il lato esposto per un istante dopo un movimento del prezzo.
+* an **efficient price** on the leading venue: Brownian motion plus information events incorporated over a few seconds;
+* the **market maker** on the lagging venue, which sees the leading price with a delay and quotes with the Avellaneda-Stoikov formulas;
+* uninformed **noise traders**, as in the paper, and **arbitrageurs** who see the leading venue and take any quote that is stale by more than their cost;
+* two defences: a **wider spread**, and a **guard** that withdraws the exposed side for an instant after a price move.
 
-| Scenario (mezz'ora, ordini da 1 unità a 100 USD) | PnL medio (USD) |
+| Scenario (half an hour, orders of 1 unit worth 100 USD) | Mean PnL (USD) |
 |---|---:|
-| Manuale: nessun arbitraggista | 4,47 |
-| 1 s di ritardo, con arbitraggisti | 0,09 |
-| 1 s + spread più largo di 1 bp | 0,15 |
-| 1 s + guardia (soglia 1 bp, pausa 0,25 s) | 2,10 |
-| 250 ms di ritardo | 4,47 |
+| Textbook: no arbitrageurs | 4.47 |
+| 1 s delay, with arbitrageurs | 0.09 |
+| 1 s + 1 bp wider spread | 0.15 |
+| 1 s + guard (1 bp threshold, 0.25 s pause) | 2.10 |
+| 200 ms delay | 4.47 |
 
-Gli arbitraggisti sono il 13% delle esecuzioni, ma ciascuna costa in media −13 bp a 10 secondi, contro +1,9 bp di un'esecuzione con un noise trader. La velocità elimina il problema. Senza velocità la guardia recupera quasi metà del guadagno perso, mentre allargare lo spread quasi non aiuta. La soglia e la pausa della guardia sono scelte su traiettorie diverse da quelle della valutazione.
+Arbitrageurs make up 13% of the fills, but each costs −13 bp at 10 seconds on average, against +1.9 bp for a fill against a noise trader. Speed removes the problem. Without speed, the guard recovers almost half of the lost profit, while widening the spread barely helps. The guard's threshold and pause are chosen on paths different from those used for evaluation.
 
-Il simulatore è in [`two_venue_sim.py`](two_venue_sim.py): vettorizzato sulle traiettorie Monte Carlo, scompone il PnL in edge delle esecuzioni e PnL dell'inventario e misura il markout per tipo di controparte.
+The simulator is [`two_venue_sim.py`](two_venue_sim.py): vectorised over Monte Carlo paths, it splits the PnL exactly into the edge of the fills, the inventory PnL and fees, and measures markouts by counterparty.
 
-### Dove si colloca nella letteratura
+## 3. Real data: Hyperliquid versus Binance — [`hyperliquid_binance_data.ipynb`](hyperliquid_binance_data.ipynb)
 
-Il modello mette insieme tre filoni noti:
-- **selezione avversa:** Glosten e Milgrom, 1985; Copeland e Galai, 1983;
-- **market making ottimale:** Avellaneda e Stoikov, 2008; Cartea, Jaimungal e Ricci, 2014;
-- **arbitraggio di latenza sulle quote rimaste indietro:** Budish, Cramton e Shim, 2015; Foucault, Kozhan e Tham, 2017.
+Public feeds recorded from 10 to 12 November 2026: every best bid and ask update and every trade on Hyperliquid (1.76 million trades, 9.8 billion USD of volume) and the Binance futures book every 100 ms, for BTC, ETH and HYPE.
 
-Il loro equivalente in DeFi è il *loss-versus-rebalancing* dei fornitori di liquidità degli AMM (Milionis et al., 2022). Il contributo qui non è teorico: il meccanismo di Budish e coautori diventa misurabile in una simulazione e viene collegato a quanto osservato in gara. La discussione completa e i riferimenti sono alla fine del notebook.
+- **Binance leads and Hyperliquid follows.** Hyperliquid closes almost all of the gap between the two venues; Binance does not move.
+- **The flow that follows Binance is toxic** and makes up a third of the volume or more (table above).
+- **Latency and fees decide.** With one-tick spreads, a BTC market maker only makes money with less than about 100–200 ms of delay behind Binance and fees close to zero; at the base fee of around 1.5 bp it loses in any case.
 
-## Riferimenti principali
+The scripts are in [`empirical/`](empirical/): `extract_mainnet.py` extracts the data from the recordings and `analyze_mainnet.py` writes the aggregated results to [`empirical/results/`](empirical/results/), which the notebook reads. The raw data are not included: they amount to tens of GB and exchange feeds restrict redistribution.
 
-* Avellaneda, M. e Stoikov, S. (2008). High-frequency trading in a limit order book. *Quantitative Finance*.
-* Budish, E., Cramton, P. e Shim, J. (2015). The high-frequency trading arms race: frequent batch auctions as a market design response. *Quarterly Journal of Economics*.
-* Cartea, Á., Jaimungal, S. e Penalva, J. (2015). *Algorithmic and High-Frequency Trading*. Cambridge University Press.
-* Foucault, T., Kozhan, R. e Tham, W. W. (2017). Toxic arbitrage. *Review of Financial Studies*.
-* Glosten, L. e Milgrom, P. (1985). Bid, ask and transaction prices in a specialist market with heterogeneously informed traders. *Journal of Financial Economics*.
-* Milionis, J., Moallemi, C. C., Roughgarden, T. e Zhang, A. L. (2022). Automated market making and loss-versus-rebalancing. Preprint arXiv.
+## Where this sits in the literature
 
-## ▶️ Esecuzione
+The model combines three known strands: adverse selection (Glosten and Milgrom, 1985; Copeland and Galai, 1983), optimal market making (Avellaneda and Stoikov, 2008; Cartea, Jaimungal and Ricci, 2014) and latency arbitrage on stale quotes (Budish, Cramton and Shim, 2015; Foucault, Kozhan and Tham, 2017). Its DeFi counterpart is the *loss-versus-rebalancing* of liquidity providers in automated market makers (Milionis et al., 2022). The contribution here is not theoretical: it makes the Budish-Cramton-Shim mechanism measurable in a simulation, links it to what we observed in the competition and checks it against real data. The full discussion and references are at the end of [`two_venue_adverse_selection.ipynb`](two_venue_adverse_selection.ipynb).
 
-Serve Python 3.9 o successivo.
+### Main references
+
+* Avellaneda, M. and Stoikov, S. (2008). High-frequency trading in a limit order book. *Quantitative Finance*.
+* Budish, E., Cramton, P. and Shim, J. (2015). The high-frequency trading arms race: frequent batch auctions as a market design response. *Quarterly Journal of Economics*.
+* Cartea, Á., Jaimungal, S. and Penalva, J. (2015). *Algorithmic and High-Frequency Trading*. Cambridge University Press.
+* Foucault, T., Kozhan, R. and Tham, W. W. (2017). Toxic arbitrage. *Review of Financial Studies*.
+* Glosten, L. and Milgrom, P. (1985). Bid, ask and transaction prices in a specialist market with heterogeneously informed traders. *Journal of Financial Economics*.
+* Milionis, J., Moallemi, C. C., Roughgarden, T. and Zhang, A. L. (2022). Automated market making and loss-versus-rebalancing. arXiv preprint.
+
+## How to run
+
+Requires Python 3.9 or later.
 
 ```bash
 git clone https://github.com/lancellottimatteo19/market-making-avellaneda-stoikov.git
@@ -73,10 +90,10 @@ pip install -r requirements.txt
 jupyter lab
 ```
 
-Test del simulatore:
+Simulator tests:
 
 ```bash
 python -m pytest tests
 ```
 
-I notebook sono salvati con gli output, quindi grafici e risultati si vedono anche direttamente su GitHub.
+The notebooks are saved with their outputs, so charts and results can be read directly on GitHub.
